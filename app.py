@@ -1,9 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 import requests
 import json
 import re
@@ -30,27 +27,7 @@ except Exception as e:
     data = []
 
 # =========================
-# LOAD EMBEDDING MODEL
-# =========================
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-catalog_texts = []
-
-for item in data:
-
-    text = f"""
-    name: {item.get('name', '')}
-    description: {item.get('description', '')}
-    category: {item.get('category', '')}
-    """
-
-    catalog_texts.append(text)
-
-catalog_embeddings = model.encode(catalog_texts)
-
-# =========================
-# CONVERSATION MEMORY
+# MEMORY
 # =========================
 
 conversation_memory = {}
@@ -63,7 +40,7 @@ STAGES = {
 }
 
 # =========================
-# REQUEST MODELS
+# MODELS
 # =========================
 
 class Message(BaseModel):
@@ -75,7 +52,7 @@ class ChatRequest(BaseModel):
     messages: List[Message]
 
 # =========================
-# INITIALIZE SESSION
+# SESSION
 # =========================
 
 def initialize_session(session_id):
@@ -91,50 +68,60 @@ def initialize_session(session_id):
         }
 
 # =========================
-# SEARCH FUNCTION
+# LIGHTWEIGHT SEARCH
 # =========================
 
 def search_recommendations(query):
 
-    if len(data) == 0:
-        return []
+    results = []
 
-    query_embedding = model.encode([query])
+    query_words = query.lower().split()
 
-    similarities = cosine_similarity(
-        query_embedding,
-        catalog_embeddings
-    )[0]
+    for item in data:
 
-    top_indices = np.argsort(similarities)[::-1][:5]
+        searchable_text = f"""
+        {item.get('name', '')}
+        {item.get('description', '')}
+        {item.get('category', '')}
+        """.lower()
 
-    recommendations = []
+        score = 0
 
-    for idx in top_indices:
+        for word in query_words:
 
-        item = data[idx]
+            if word in searchable_text:
+                score += 1
 
-        recommendations.append({
-            "name": item.get("name"),
-            "category": item.get("category"),
-            "description": item.get("description"),
-            "score": float(similarities[idx])
-        })
+        if score > 0:
 
-    return recommendations
+            results.append({
+                "name": item.get("name"),
+                "category": item.get("category"),
+                "description": item.get("description"),
+                "score": score
+            })
+
+    results = sorted(
+        results,
+        key=lambda x: x["score"],
+        reverse=True
+    )
+
+    return results[:5]
 
 # =========================
-# HOME ROUTE
+# HOME
 # =========================
 
 @app.get("/")
 def home():
+
     return {
         "message": "SHL Chatbot Running Successfully"
     }
 
 # =========================
-# CHAT ROUTE
+# CHAT
 # =========================
 
 @app.post("/chat")
@@ -148,7 +135,7 @@ def chat(req: ChatRequest):
 
     latest_message = req.messages[-1].content.lower()
 
-    # START STAGE
+    # START
     if state["stage"] == STAGES["START"]:
 
         state["role_interest"] = latest_message
@@ -159,7 +146,7 @@ def chat(req: ChatRequest):
             "stage": state["stage"]
         }
 
-    # EXPERIENCE STAGE
+    # EXPERIENCE
     elif state["stage"] == STAGES["EXPERIENCE"]:
 
         state["experience"] = latest_message
@@ -170,7 +157,7 @@ def chat(req: ChatRequest):
             "stage": state["stage"]
         }
 
-    # LOCATION STAGE
+    # LOCATION
     elif state["stage"] == STAGES["LOCATION"]:
 
         state["location"] = latest_message
@@ -195,7 +182,6 @@ def chat(req: ChatRequest):
             "total_results": len(recommendations)
         }
 
-    # FINAL STAGE
     return {
         "response": "Conversation already completed.",
         "recommendations": state["recommendations"],
