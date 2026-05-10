@@ -12,13 +12,18 @@ conversation_state = {}
 # LOAD DATASET
 url = "https://tcp-us-prod-rnd.shl.com/voiceRater/shl-ai-hiring/shl_product_catalog"
 
-response = requests.get(url)
+try:
+    response = requests.get(url, timeout=10)
 
-raw_text = response.text
+    raw_text = response.text
 
-clean_text = re.sub(r'[\x00-\x1F\x7F]', '', raw_text)
+    clean_text = re.sub(r'[\x00-\x1F\x7F]', '', raw_text)
 
-data = json.loads(clean_text)
+    data = json.loads(clean_text)
+
+except Exception as e:
+    print("DATA LOAD ERROR:", e)
+    data = []
 
 # CREATE SEARCHABLE TEXTS
 texts = []
