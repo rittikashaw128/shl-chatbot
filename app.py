@@ -14,17 +14,40 @@ app = FastAPI()
 url = "https://tcp-us-prod-rnd.shl.com/voiceRater/shl-ai-hiring/shl_product_catalog"
 
 try:
-    response = requests.get(url, timeout=10)
 
-    raw_text = response.text
+    response = requests.get(url, timeout=20)
 
-    clean_text = re.sub(r'[\x00-\x1F\x7F]', '', raw_text)
+    if response.status_code == 200:
 
-    data = json.loads(clean_text)
+        raw_text = response.text.strip()
+
+        clean_text = re.sub(r'[\x00-\x1F\x7F]', '', raw_text)
+
+        parsed_data = json.loads(clean_text)
+
+        if isinstance(parsed_data, list):
+
+            data = parsed_data
+
+        else:
+
+            print("Dataset is not a list")
+
+            data = []
+
+    else:
+
+        print("Failed to fetch dataset")
+
+        data = []
 
 except Exception as e:
-    print("DATA LOAD ERROR:", e)
+
+    print("DATA LOAD ERROR:", str(e))
+
     data = []
+
+print("TOTAL DATA LOADED:", len(data))
 
 # =========================
 # MEMORY
