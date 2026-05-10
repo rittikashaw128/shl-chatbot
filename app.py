@@ -11,8 +11,7 @@ app = FastAPI()
 # LOAD DATASET
 # =========================
 
-url = "https://tcp-us-prod-rnd.shl.com/voiceRater/shl-ai-hiring/shl_product_catalog"
-
+url = "https://raw.githubusercontent.com/rittikashaw128/shl-chatbot/main/catalog.json"
 try:
 
     response = requests.get(url, timeout=20)
