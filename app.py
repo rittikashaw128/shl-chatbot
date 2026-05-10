@@ -68,14 +68,14 @@ def initialize_session(session_id):
         }
 
 # =========================
-# LIGHTWEIGHT SEARCH
+# SEARCH FUNCTION
 # =========================
 
 def search_recommendations(query):
 
-    results = []
-
     query_words = query.lower().split()
+
+    results = []
 
     for item in data:
 
@@ -182,6 +182,7 @@ def chat(req: ChatRequest):
             "total_results": len(recommendations)
         }
 
+    # FINAL
     return {
         "response": "Conversation already completed.",
         "recommendations": state["recommendations"],
