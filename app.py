@@ -4,6 +4,24 @@ from typing import List
 import requests
 import json
 import re
+conversation_memory = {}
+STAGES = {
+    "START": "start",
+    "EXPERIENCE": "experience",
+    "LOCATION": "location",
+    "FINAL": "final"
+}
+def initialize_session(session_id):
+
+    if session_id not in conversation_memory:
+
+        conversation_memory[session_id] = {
+            "stage": STAGES["START"],
+            "role_interest": None,
+            "experience": None,
+            "location": None,
+            "recommendations": []
+        }
 
 app = FastAPI()
 
@@ -43,6 +61,7 @@ class Message(BaseModel):
 
 
 class ChatRequest(BaseModel):
+    session_id: str
     messages: List[Message]
 
 
@@ -52,44 +71,71 @@ def home():
 
 
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(req: ChatRequest):
 
-    latest_message = request.messages[-1].content.lower()
+    session_id = req.session_id
 
-    # SIMPLE KEYWORD SEARCH
-    scores = []
+    initialize_session(session_id)
 
-    query_words = latest_message.split()
+    state = conversation_memory[session_id]
 
-    for text in texts:
+    latest_message = req.messages[-1].content.lower()
 
-        score = 0
+    # START
+    if state["stage"] == STAGES["START"]:
 
-        for word in query_words:
-            if word in text:
-                score += 1
+        state["role_interest"] = latest_message
+        state["stage"] = STAGES["EXPERIENCE"]
 
-        scores.append(score)
+        return {
+            "response": "What experience level are you looking for?",
+            "stage": state["stage"]
+        }
 
-    top_indices = sorted(
-        range(len(scores)),
-        key=lambda i: scores[i],
-        reverse=True
-    )[:5]
+    # EXPERIENCE
+    elif state["stage"] == STAGES["EXPERIENCE"]:
 
-    recommendations = []
+        state["experience"] = latest_message
+        state["stage"] = STAGES["LOCATION"]
 
-    for idx in top_indices:
+        return {
+            "response": "Do you prefer remote or onsite opportunities?",
+            "stage": state["stage"]
+        }
 
-        item = data[idx]
+    # LOCATION
+    elif state["stage"] == STAGES["LOCATION"]:
 
-        recommendations.append({
-            "name": item.get("name", ""),
-            "url": item.get("url", ""),
-            "category": item.get("category", "")
-        })
+        state["location"] = latest_message
 
-    return {
-        "query": latest_message,
-        "recommendations": recommendations
-    }
+        recommendations = search_recommendations(
+            state["role_interest"]
+        )
+
+        state["recommendations"] = recommendations
+        state["stage"] = STAGES["FINAL"]
+
+        return {
+            "response": "Here are your top recommendations.",
+            "recommendations": recommendations,
+            "conversation_complete": True
+        }
+
+
+def search_recommendations(query):
+
+    results = []
+
+    for item in data:
+
+        title = item.get("name", "").lower()
+
+        if query.lower() in title:
+
+            results.append({
+                "name": item.get("name"),
+                "category": item.get("category"),
+                "description": item.get("description")
+            })
+
+    return results[:5]
